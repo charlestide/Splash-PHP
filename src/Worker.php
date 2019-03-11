@@ -9,6 +9,8 @@
 namespace SplashPhp;
 
 use Beanbun\Beanbun;
+use Campo\UserAgent;
+use GuzzleHttp\Cookie\CookieJar;
 use SplashPhp\Libraries\Output;
 use SplashPhp\Libraries\Splash\Client;
 use Symfony\Component\DomCrawler\Crawler;
@@ -39,8 +41,19 @@ abstract class Worker
      * @var array
      */
     protected $headers = [
-        'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36'
+//        'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36'
     ];
+
+    /**
+     * @var string
+     */
+    protected $userAgent;
+
+    /**
+     * @var CookieJar
+     */
+    protected $cookie;
+
 
     /**
      * @var bool 是否使用Splash
@@ -53,6 +66,8 @@ abstract class Worker
     protected $proxyHost;
     protected $proxyPort;
 
+    protected $wait = 3;
+
     /**
      * Worker constructor.
      */
@@ -61,6 +76,7 @@ abstract class Worker
         $this->bean = new Beanbun;
         $this->bean->seed = $this->getSeed();
         $this->output = new Output();
+        $this->cookie = new CookieJar();
     }
 
     /**
@@ -89,6 +105,8 @@ abstract class Worker
 
     public function start() {
         $this->listen();
+        $this->beforeDownload();
+        $this->prepare();
         $this->bean->start();
     }
 
@@ -121,9 +139,33 @@ abstract class Worker
     }
 
     /**
+     * @throws \Exception
+     */
+    protected function prepare() {
+        if (!$this->getUserAgent()) {
+            $userAgent = UserAgent::random([
+                'os_type' => 'Windows'
+            ]);
+            $this->setUserAgent($userAgent);
+        }
+        $this->getOutput()->field('User-Agent',$this->getUserAgent());
+
+        if (!isset($this->headers['cookie']) or empty($this->headers['cookie'])) {
+            $this->headers['cookie'] = $this->getCookieString();
+        }
+        $this->getOutput()->field('Cookie',$this->headers['cookie']);
+    }
+
+    /**
      * @return array
      */
     abstract public function getSeed(): array;
+
+    /**
+     * @return mixed
+     */
+    abstract protected function beforeDownload();
+
 
     /**
      * @param Crawler $crawler
@@ -140,8 +182,13 @@ abstract class Worker
             $client->getOptions()->set('proxy',$this->getProxy());
         }
         $client->getOptions()->set('headers',$this->headers);
-        $beanbun->page = $client->html($beanbun->url);
 
+        if ($this->wait) {
+            $client->getOptions()->set('wait',$this->wait);
+        }
+
+        $beanbun->page = $client->html($beanbun->url);
+//        $beanbun->page = $client->image($beanbun->url);
     }
 
     /**
@@ -213,4 +260,44 @@ abstract class Worker
             return null;
         }
     }
+
+    /**
+     * @return mixed
+     */
+    public function getUserAgent()
+    {
+        return @$this->headers['User-Agent'];
+    }
+
+    /**
+     * @param mixed $userAgent
+     */
+    public function setUserAgent(string $userAgent): void
+    {
+        $this->headers['User-Agent'] = $userAgent;
+    }
+
+    /**
+     * @return CookieJar
+     */
+    public function getCookie(): CookieJar
+    {
+        return $this->cookie;
+    }
+
+    /**
+     * @return string
+     */
+    public function getCookieString(): string {
+        if ($this->getCookie()->count()) {
+            $cookie = '';
+            foreach ($this->getCookie()->getIterator() as $key => $value) {
+                $cookie .= "{$key}:{$value}; ";
+            }
+            return $cookie;
+        } else {
+            return '';
+        }
+    }
+
 }

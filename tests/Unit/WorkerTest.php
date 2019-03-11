@@ -72,8 +72,6 @@ class WorkerTest extends TestCase
         $this->assertTrue(is_callable($worker->getBean()->downloadPage),'设置splash之后，download回调应有值');
     }
 
-
-
     /**
      * @return array
      */

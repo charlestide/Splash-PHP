@@ -78,12 +78,6 @@ class Client
      * @return Crawler|null
      */
     public function html(string $url): ?Crawler {
-
-//        $renderUrl = "render.html?url={$url}";
-//        if ($this->getOptions()->toQuery()) {
-//            $renderUrl .= "&{$this->getOptions()->toQuery()}";
-//        }
-
         $query = $this->getOptions()->all();
         $query['url'] = $url;
         $response = $this->client->post('render.html',[
@@ -96,5 +90,20 @@ class Client
         } else {
             return null;
         }
+    }
+
+    /**
+     * @param string $url
+     * @param string $savePath
+     * @return bool
+     */
+    public function image(string $url, string $savePath = './render.png'): bool {
+        $query = $this->getOptions()->all();
+        $query['url'] = $url;
+        $response = $this->client->post('render.png',[
+            'json' => $query
+        ]);
+        $response->getBody()->seek(0);
+        return file_put_contents($savePath,$response->getBody()->getContents());
     }
 }
